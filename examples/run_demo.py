@@ -14,9 +14,10 @@ from rich.table import Table
 
 from dianshang.agent.graph import run
 
-# Windows 控制台默认 GBK，强制 UTF-8 避免中文乱码
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+# Windows 控制台默认 GBK，强制 stdout/stderr UTF-8 避免中文乱码
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
 
 console = Console()
 
