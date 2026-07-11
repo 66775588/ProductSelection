@@ -25,8 +25,10 @@ function badgeClass(rec) {
   return { '强烈推荐': 'b-strong', '可尝试': 'b-try', '谨慎进入': 'b-cautious', '不推荐': 'b-no' }[rec] || 'b-no';
 }
 
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 // —— 新建调研 ——
-let weightState = { market_potential: 30, competition: 20, profit: 25, pain_points: 15, risk: 10 };
+let weightState = { market_potential: 0.30, competition: 0.20, profit: 0.25, pain_points: 0.15, risk: 0.10 };
 function renderSliders(container, state, sumEl) {
   container.innerHTML = '';
   WEIGHT_KEYS.forEach(([k, label]) => {
@@ -42,6 +44,9 @@ function renderSliders(container, state, sumEl) {
   sumEl.querySelector('b').textContent = (Object.values(state).reduce((a,b)=>a+b,0)*100).toFixed(0) + '%';
 }
 renderSliders(document.getElementById('weight-sliders'), weightState, document.getElementById('weight-sum'));
+// 立即从 localStorage 恢复高级滑块（不依赖 Settings tab 点击）
+const _saved = localStorage.getItem('adv-weights');
+if (_saved) { try { Object.assign(weightState, JSON.parse(_saved)); renderSliders(document.getElementById('weight-sliders'), weightState, document.getElementById('weight-sum')); } catch {} }
 
 let pollTimer = null;
 document.getElementById('research-form').addEventListener('submit', async e => {
@@ -49,8 +54,13 @@ document.getElementById('research-form').addEventListener('submit', async e => {
   const category = document.getElementById('f-category').value.trim();
   const platform = document.getElementById('f-platform').value;
   const forceMock = document.getElementById('f-force-mock').checked;
+  const wsum = Object.values(weightState).reduce((a,b)=>a+b,0) * 100;
+  if (wsum > 0 && Math.abs(wsum - 100) > 1) {
+    alert('权重之和必须为 100%（当前 ' + wsum.toFixed(0) + '%）');
+    return;
+  }
   const overrides = { crawl: { force_mock: forceMock } };
-  if (Object.values(weightState).reduce((a,b)=>a+b,0) > 0) {
+  if (wsum > 0) {
     overrides.scoring_weights = { ...weightState };
   }
   const r = await fetch('/api/research', {
@@ -90,25 +100,25 @@ function pollJob(jobId) {
 function renderResult(res) {
   if (!res) return;
   const dl = Object.entries(res.report_paths || {}).map(
-    ([k, p]) => `<a href="/api/reports/${p.split(/[/\\]/).pop()}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
+    ([k, p]) => `<a href="/api/reports/${encodeURIComponent(p.split(/[/\\]/).pop())}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
   ).join(' ');
   const scores = Object.entries(res.scores || {}).map(([k, v]) => {
     const label = Object.fromEntries(WEIGHT_KEYS)[k] || k;
     return `<div>${label}: ${v}<div class="score-bar"><i style="width:${v}%"></i></div></div>`;
   }).join('');
-  const pains = (res.pain_points || []).map(p => `<li>${p.keyword||p.point||''} (频次 ${p.frequency??'—'}, 严重度 ${p.severity??'—'})</li>`).join('');
-  const risks = (res.risk_items || []).map(r => `<li>[${r.level||''}] ${r.type||''}: ${r.desc||''}</li>`).join('');
-  const prov = Object.entries(res.data_provenance || {}).map(([k,v]) => `${k}: ${v}`).join('；');
+  const pains = (res.pain_points || []).map(p => `<li>${esc(p.keyword||p.point||'')} (频次 ${p.frequency??'—'}, 严重度 ${p.severity??'—'})</li>`).join('');
+  const risks = (res.risk_items || []).map(r => `<li>[${esc(r.level||'')}] ${esc(r.type||'')}: ${esc(r.desc||'')}</li>`).join('');
+  const prov = Object.entries(res.data_provenance || {}).map(([k,v]) => `${esc(k)}: ${esc(v)}`).join('；');
   document.getElementById('result').innerHTML = `
-    <h2>${res.category} <span class="badge ${badgeClass(res.recommendation)}">${res.recommendation}</span></h2>
-    <p>综合得分 <b>${res.total_score}</b> — ${res.recommendation_reason||''}</p>
+    <h2>${esc(res.category)} <span class="badge ${badgeClass(res.recommendation)}">${esc(res.recommendation)}</span></h2>
+    <p>综合得分 <b>${res.total_score}</b> — ${esc(res.recommendation_reason||'')}</p>
     ${res.red_line_hit ? '<p class="warn">⚠ 命中红线规则</p>' : ''}
     <h3>五维评分</h3>${scores}
     <h3>利润</h3><p>售价 ¥${res.profit?.selling_price??'—'} · 毛利率 ${res.profit?.gross_margin??'—'}% · 回本 ${res.profit?.payback_months??'—'} 月 · 盈亏平衡 ${res.profit?.break_even_units??'—'} 件/月</p>
     <h3>TOP5 痛点</h3><ul>${pains}</ul>
     <h3>风险 (${(res.risk_items||[]).length})</h3><ul>${risks}</ul>
     <p class="warn">数据来源: ${prov||'—'}</p>
-    ${(res.errors||[]).length ? `<p class="warn">错误: ${res.errors.join('; ')}</p>` : ''}
+    ${(res.errors||[]).length ? `<p class="warn">错误: ${res.errors.map(e=>esc(e)).join('; ')}</p>` : ''}
     <div>${dl}</div>`;
 }
 
@@ -116,15 +126,18 @@ function renderResult(res) {
 let page = 0; const PAGE_SIZE = 20;
 async function loadHistory() {
   const r = await (await fetch(`/api/history?limit=${PAGE_SIZE}&offset=${page*PAGE_SIZE}`)).json();
+  const items = r.items||[];
   const tb = document.querySelector('#history-table tbody');
-  tb.innerHTML = (r.items||[]).map(it => `<tr>
-    <td>${it.category}</td><td>${it.platform}</td>
-    <td><span class="badge ${badgeClass(it.recommendation)}">${it.recommendation||''}</span></td>
+  tb.innerHTML = items.map(it => `<tr>
+    <td>${esc(it.category)}</td><td>${esc(it.platform)}</td>
+    <td><span class="badge ${badgeClass(it.recommendation)}">${esc(it.recommendation||'')}</span></td>
     <td>${it.total_score??''}</td><td>${it.gross_margin??''}</td>
-    <td>${it.red_line_hit?'是':''}</td><td>${(it.created_at||'').slice(0,16)}</td>
+    <td>${it.red_line_hit?'是':''}</td><td>${esc((it.created_at||'').slice(0,16))}</td>
     <td><button onclick="showDetail(${it.id})">查看</button></td>
   </tr>`).join('');
   document.getElementById('page-info').textContent = `第 ${page+1} 页 / 共 ${r.total} 条`;
+  document.getElementById('prev-page').disabled = page === 0;
+  document.getElementById('next-page').disabled = items.length < PAGE_SIZE;
 }
 document.getElementById('prev-page').onclick = () => { if (page>0){page--; loadHistory();} };
 document.getElementById('next-page').onclick = () => { page++; loadHistory(); };
@@ -133,16 +146,16 @@ window.showDetail = async function(id) {
   const d = await (await fetch(`/api/history/${id}`)).json();
   const sj = d.state_json || {};
   const dl = Object.entries(d.report_paths || {}).map(
-    ([k, p]) => `<a href="/api/reports/${(p||'').split(/[/\\]/).pop()}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
+    ([k, p]) => `<a href="/api/reports/${encodeURIComponent((p||'').split(/[/\\]/).pop())}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
   ).join(' ');
   const scores = Object.entries(sj.scores || {}).map(([k,v]) => {
     const label = Object.fromEntries(WEIGHT_KEYS)[k] || k;
     return `<div>${label}: ${v}<div class="score-bar"><i style="width:${v}%"></i></div></div>`;
   }).join('');
-  const pains = (sj.pain_points||[]).map(p => `<li>${p.keyword||p.point||''}</li>`).join('');
-  const risks = (sj.risk_items||[]).map(r => `<li>[${r.level||''}] ${r.type||''}: ${r.desc||''}</li>`).join('');
+  const pains = (sj.pain_points||[]).map(p => `<li>${esc(p.keyword||p.point||'')}</li>`).join('');
+  const risks = (sj.risk_items||[]).map(r => `<li>[${esc(r.level||'')}] ${esc(r.type||'')}: ${esc(r.desc||'')}</li>`).join('');
   document.getElementById('detail-content').innerHTML = `
-    <h2>${d.category} <span class="badge ${badgeClass(d.recommendation)}">${d.recommendation}</span></h2>
+    <h2>${esc(d.category)} <span class="badge ${badgeClass(d.recommendation)}">${esc(d.recommendation)}</span></h2>
     <p>综合得分 <b>${d.total_score}</b> · 毛利率 ${d.gross_margin??'—'}%</p>
     <h3>五维评分</h3>${scores}
     <h3>TOP5 痛点</h3><ul>${pains}</ul>
@@ -181,9 +194,6 @@ async function loadConfig() {
     `<label>${label} <input type="number" step="0.01" value="${cfgState.profit[k]}" data-k="${k}"></label>`
   ).join('');
   document.getElementById('cfg-force-mock').checked = cfgState.crawl.force_mock;
-  // localStorage 恢复高级滑块
-  const saved = localStorage.getItem('adv-weights');
-  if (saved) { try { Object.assign(weightState, JSON.parse(saved)); renderSliders(document.getElementById('weight-sliders'), weightState, document.getElementById('weight-sum')); } catch {} }
 }
 function updateCfgSum() {
   const sum = Object.values(cfgState.scoring_weights).reduce((a,b)=>a+b,0)*100;
@@ -191,6 +201,11 @@ function updateCfgSum() {
 }
 document.getElementById('config-form').addEventListener('submit', async e => {
   e.preventDefault();
+  const wsum = Object.values(cfgState.scoring_weights).reduce((a,b)=>a+b,0) * 100;
+  if (Math.abs(wsum - 100) > 1) {
+    document.getElementById('cfg-status').textContent = '权重之和必须为 100%（当前 ' + wsum.toFixed(0) + '%）';
+    return;
+  }
   const payload = {
     scoring_weights: cfgState.scoring_weights,
     profit: Object.fromEntries([...document.querySelectorAll('#cfg-profit input')].map(i => [i.dataset.k, +i.value])),
