@@ -4,67 +4,261 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>选品调研 Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-<nav class="tabs">
-  <button class="tab active" data-tab="research">新建调研</button>
-  <button class="tab" data-tab="history">历史记录</button>
-  <button class="tab" data-tab="detail">报告详情</button>
-  <button class="tab" data-tab="config">设置</button>
-</nav>
 
+<!-- 顶部导航 -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="8" fill="url(#logo-grad)"/>
+        <path d="M7 14l4 4 10-10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <defs><linearGradient id="logo-grad" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+      </svg>
+      <span>选品调研</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="research">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M9.5 9.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        新建调研
+      </button>
+      <button class="tab" data-tab="dashboard">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="6" y="4" width="4" height="11" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="11" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+        仪表盘
+      </button>
+      <button class="tab" data-tab="history">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.3"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        历史记录
+      </button>
+      <button class="tab" data-tab="detail">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        报告详情
+      </button>
+      <button class="tab" data-tab="config">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2m0 10v2M1 8h2m10 0h2M3.05 3.05l1.41 1.41m7.08 7.08l1.41 1.41M3.05 12.95l1.41-1.41m7.08-7.08l1.41-1.41" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        设置
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="content">
+
+<!-- Tab 1: 新建调研 -->
 <section id="tab-research" class="panel active">
-  <form id="research-form">
-    <label>品类 <input id="f-category" required placeholder="如 保温杯" /></label>
-    <label>平台
-      <select id="f-platform">
-        <option value="pdd">拼多多</option>
-        <option value="taobao">淘宝</option>
-        <option value="tmall">天猫</option>
-        <option value="jd">京东</option>
-      </select>
-    </label>
-    <details>
-      <summary>高级（覆盖本次运行配置）</summary>
-      <label><input type="checkbox" id="f-force-mock" /> 强制 Mock 数据</label>
-      <div id="weight-sliders"></div>
-      <div id="weight-sum">权重和: <b>—</b></div>
-    </details>
-    <button type="submit">开始调研</button>
-  </form>
-  <div id="stepper"></div>
-  <div id="result"></div>
-</section>
-
-<section id="tab-history" class="panel">
-  <table id="history-table"><thead><tr>
-    <th>品类</th><th>平台</th><th>推荐</th><th>总分</th><th>毛利率%</th><th>红线</th><th>时间</th><th></th>
-  </tr></thead><tbody></tbody></table>
-  <div id="history-pager">
-    <button id="prev-page">上一页</button>
-    <span id="page-info"></span>
-    <button id="next-page">下一页</button>
+  <div class="grid-2col">
+    <!-- 左侧：输入区 -->
+    <div class="card">
+      <div class="card-header">
+        <h3>开始调研</h3>
+        <p class="card-sub">输入品类 + 选择平台，启动 9 节点自动化分析</p>
+      </div>
+      <form id="research-form">
+        <div class="form-group">
+          <label for="f-category">品类名称</label>
+          <input type="text" id="f-category" autocomplete="off" required placeholder="如 保温杯、蓝牙耳机、瑜伽裤" />
+        </div>
+        <div class="form-group">
+          <label>目标平台</label>
+          <div class="platform-selector" id="platform-selector">
+            <label class="platform-card selected" data-platform="pdd">
+              <div class="plat-icon">🛒</div>
+              <div class="plat-name">拼多多</div>
+              <div class="plat-badge">PDD</div>
+              <input type="radio" name="platform" value="pdd" checked hidden />
+            </label>
+            <label class="platform-card" data-platform="taobao">
+              <div class="plat-icon">🏪</div>
+              <div class="plat-name">淘宝</div>
+              <div class="plat-badge">Taobao</div>
+              <input type="radio" name="platform" value="taobao" hidden />
+            </label>
+            <label class="platform-card" data-platform="tmall">
+              <div class="plat-icon">🏬</div>
+              <div class="plat-name">天猫</div>
+              <div class="plat-badge">Tmall</div>
+              <input type="radio" name="platform" value="tmall" hidden />
+            </label>
+            <label class="platform-card" data-platform="jd">
+              <div class="plat-icon">📦</div>
+              <div class="plat-name">京东</div>
+              <div class="plat-badge">JD</div>
+              <input type="radio" name="platform" value="jd" hidden />
+            </label>
+          </div>
+        </div>
+        <details id="advanced-options">
+          <summary>高级选项</summary>
+          <div class="adv-panel">
+            <label class="toggle-row">
+              <span>强制 Mock 数据</span>
+              <input type="checkbox" id="f-force-mock" />
+              <span class="toggle"></span>
+            </label>
+            <div class="form-group">
+              <label>评分权重覆盖 <span class="badge-sm">和=100%</span></label>
+              <div id="weight-sliders"></div>
+              <div id="weight-sum" class="sum-indicator">当前权重和: <b>100%</b></div>
+            </div>
+          </div>
+        </details>
+        <button type="submit" class="btn-primary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1v16M1 9h16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+          开始调研
+        </button>
+      </form>
+    </div>
+    <!-- 右侧：进度 + 结果 -->
+    <div class="card" id="progress-card">
+      <div class="card-header">
+        <h3>任务进度</h3>
+        <p class="card-sub" id="progress-status-text">等待发起任务…</p>
+      </div>
+      <div id="stepper"></div>
+      <div id="result"></div>
+    </div>
   </div>
 </section>
 
-<section id="tab-detail" class="panel">
-  <div id="detail-content"></div>
+<!-- Tab 2: 仪表盘 -->
+<section id="tab-dashboard" class="panel">
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon" style="--accent:#6366f1">📊</div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">调研总数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="--accent:#10b981">✅</div>
+      <div class="stat-value" id="stat-strong">—</div>
+      <div class="stat-label">强烈推荐</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="--accent:#22d3ee">📈</div>
+      <div class="stat-value" id="stat-avg-score">—</div>
+      <div class="stat-label">平均得分</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="--accent:#f59e0b">🔗</div>
+      <div class="stat-value" id="stat-platforms">—</div>
+      <div class="stat-label">覆盖平台数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="--accent:#ef4444">🚩</div>
+      <div class="stat-value" id="stat-redline">—</div>
+      <div class="stat-label">红线命中</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="--accent:#8b5cf6">💰</div>
+      <div class="stat-value" id="stat-avg-margin">—</div>
+      <div class="stat-label">平均毛利率</div>
+    </div>
+  </div>
+  <div class="grid-2col" style="margin-top:20px">
+    <div class="card">
+      <div class="card-header"><h3>推荐等级分布</h3></div>
+      <div class="dist-bars" id="dist-recommendation"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>平台数据来源</h3></div>
+      <div id="cred-stats-mini" class="cred-mini-grid"></div>
+    </div>
+  </div>
 </section>
 
-<section id="tab-config" class="panel">
-  <form id="config-form">
-    <h3>评分权重（和=100%）</h3>
-    <div id="cfg-weights"></div>
-    <div id="cfg-weight-sum">权重和: <b>—</b></div>
-    <h3>利润参数</h3>
-    <div id="cfg-profit"></div>
-    <h3>数据</h3>
-    <label><input type="checkbox" id="cfg-force-mock" /> 强制 Mock</label>
-    <button type="submit">保存</button>
-    <span id="cfg-status"></span>
-  </form>
+<!-- Tab 3: 历史记录 -->
+<section id="tab-history" class="panel">
+  <div class="card">
+    <div class="card-header" style="flex-direction:row;justify-content:space-between;align-items:center">
+      <div><h3>调研记录</h3><p class="card-sub">浏览所有历史调研结果</p></div>
+      <div class="history-search">
+        <input type="text" id="history-search" placeholder="搜索品类…" />
+        <select id="history-platform-filter">
+          <option value="">全部平台</option>
+          <option value="pdd">拼多多</option>
+          <option value="taobao">淘宝</option>
+          <option value="tmall">天猫</option>
+          <option value="jd">京东</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="history-table">
+        <thead><tr>
+          <th>品类</th><th>平台</th><th>推荐</th><th>总分</th><th>毛利率%</th><th>红线</th><th>时间</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="history-pager">
+      <button id="prev-page" class="btn-ghost">上一页</button>
+      <span id="page-info"></span>
+      <button id="next-page" class="btn-ghost">下一页</button>
+    </div>
+  </div>
 </section>
+
+<!-- Tab 4: 报告详情 -->
+<section id="tab-detail" class="panel">
+  <div class="card" id="detail-content">
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">点击历史记录中的「查看」按钮查看详情</div>
+    </div>
+  </div>
+</section>
+
+<!-- Tab 5: 设置 -->
+<section id="tab-config" class="panel">
+  <div class="grid-2col">
+    <!-- 评分权重 -->
+    <div class="card">
+      <div class="card-header"><h3>评分权重</h3><p class="card-sub">五维权重之和须为 100%</p></div>
+      <div id="cfg-weights"></div>
+      <div id="cfg-weight-sum" class="sum-indicator">当前权重和: <b>100%</b></div>
+    </div>
+    <!-- 利润参数 -->
+    <div class="card">
+      <div class="card-header"><h3>利润参数</h3></div>
+      <div id="cfg-profit"></div>
+    </div>
+  </div>
+
+  <!-- 数据源 -->
+  <div class="card" style="margin-top:20px">
+    <div class="card-header">
+      <h3>数据源设置</h3>
+      <p class="card-sub">控制 Mock 模式与平台 API 接入</p>
+    </div>
+    <div style="margin-bottom:16px">
+      <label class="toggle-row">
+        <span>强制 Mock（跳过所有真实数据抓取）</span>
+        <input type="checkbox" id="cfg-force-mock" />
+        <span class="toggle"></span>
+      </label>
+    </div>
+    <button id="cfg-save-btn" type="button" class="btn-primary">保存设置</button>
+    <span id="cfg-status"></span>
+  </div>
+
+  <!-- API 凭证管理 -->
+  <div class="card" style="margin-top:20px">
+    <div class="card-header">
+      <h3>平台 API 凭证</h3>
+      <p class="card-sub">在此输入各电商平台 API 密钥，系统将优先使用真实 API 数据替代 Mock</p>
+    </div>
+    <div id="credential-cards">
+      <!-- 动态渲染 -->
+    </div>
+  </div>
+</section>
+
+</main>
 
 <script src="/static/app.js"></script>
 </body>

@@ -71,9 +71,32 @@ class CompetitorAdapter(DataSourceAdapter):
                 if not cards:
                     logger.warning("[%s] 未匹配到商品卡片（可能需登录/反爬），回退 Mock", self.name)
                     return None
+                # 平台基础域名（用于补全相对路径）
+                BASE_DOMAINS: dict[str, str] = {
+                    "pdd": "https://mobile.yangkeduo.com",
+                    "taobao": "https://www.taobao.com",
+                    "tmall": "https://www.tmall.com",
+                    "jd": "https://www.jd.com",
+                }
+                base_domain = BASE_DOMAINS.get(platform, "")
+
                 products: list[CompetitorProduct] = []
                 for idx, card in enumerate(cards[:20]):
                     text = card.inner_text() or ""
+                    # 提取商品链接
+                    product_url = ""
+                    try:
+                        a_el = card.query_selector("a[href]")
+                        if a_el:
+                            href = a_el.get_attribute("href") or ""
+                            if href.startswith("//"):
+                                product_url = "https:" + href
+                            elif href.startswith("/"):
+                                product_url = base_domain + href
+                            elif href.startswith("http"):
+                                product_url = href
+                    except Exception:
+                        pass  # 链接提取失败不影响其他字段
                     price_match = _PRICE_RE.search(text)
                     if not price_match:
                         continue
@@ -90,6 +113,7 @@ class CompetitorAdapter(DataSourceAdapter):
                             shop_level=0,
                             sku_count=0,
                             review_count=int(sales * 0.1),
+                            url=product_url,
                             source=DataSource.REAL_SCRAPE,
                         )
                     )
@@ -102,4 +126,4 @@ class CompetitorAdapter(DataSourceAdapter):
             return None
 
     def fetch_mock(self, category: str, platform: str) -> list[CompetitorProduct]:
-        return mock_gen.generate_competitors(category)
+        return mock_gen.generate_competitors(category, platform)

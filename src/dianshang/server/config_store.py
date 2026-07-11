@@ -13,7 +13,35 @@ OVERRIDES_PATH = settings.paths.data_dir / "runtime_overrides.json"
 WEIGHT_KEYS = ["market_potential", "competition", "profit", "pain_points", "risk"]
 PROFIT_RATE_KEYS = ["platform_commission_rate", "logistics_rate", "promotion_rate",
                     "refund_loss_rate", "tax_rate"]
-ALLOWED_TOP = {"scoring_weights", "profit", "crawl"}
+ALLOWED_TOP = {"scoring_weights", "profit", "crawl", "api_credentials"}
+
+# 凭证平台 → 字段列表（用于脱敏 + 校验）
+CREDENTIAL_PLATFORMS: dict[str, dict[str, Any]] = {
+    "1688": {
+        "fields": ["alibaba_1688_app_key", "alibaba_1688_app_secret"],
+        "label": "1688 开放平台",
+        "doc_url": "https://open.1688.com",
+        "usage": "供应链货源价格查询",
+    },
+    "shengyican": {
+        "fields": ["sheng_yi_can_token", "sheng_yi_can_cookie"],
+        "label": "生意参谋（淘宝/天猫）",
+        "doc_url": "https://sycm.taobao.com",
+        "usage": "市场热度、搜索趋势、转化率数据",
+    },
+    "jd": {
+        "fields": ["jd_shangzhi_app_key", "jd_shangzhi_app_secret"],
+        "label": "京东商智",
+        "doc_url": "https://sz.jd.com",
+        "usage": "京东平台市场数据",
+    },
+    "pdd": {
+        "fields": ["pdd_client_id", "pdd_client_secret"],
+        "label": "拼多多开放平台",
+        "doc_url": "https://open.pinduoduo.com",
+        "usage": "拼多多平台市场数据",
+    },
+}
 
 
 def validate_overrides(overrides: dict[str, Any]) -> list[str]:
@@ -104,6 +132,13 @@ def apply_overrides(overrides: dict[str, Any]) -> None:
     cr = overrides.get("crawl")
     if cr and "force_mock" in cr:
         settings.crawl.force_mock = cr["force_mock"]
+    # 应用 API 凭证覆盖
+    ac = overrides.get("api_credentials")
+    if ac:
+        cred = settings.api_credentials
+        for k, v in ac.items():
+            if hasattr(cred, k):
+                setattr(cred, k, v)
 
 
 def current_config() -> dict[str, Any]:
@@ -121,4 +156,96 @@ def current_config() -> dict[str, Any]:
             "packaging_cost": pf.packaging_cost,
         },
         "crawl": {"force_mock": settings.crawl.force_mock},
+        "credentials": credential_status(),
     }
+
+
+# ── API 凭证管理 ──────────────────────────────────────────────
+
+
+def _mask_value(value: str) -> str:
+    """掩码显示：空字符串 → ''，短字符串 → '****'，长字符串 → '****' + 后 4 位"""
+    if not value:
+        return ""
+    if len(value) <= 4:
+        return "****"
+    return "****" + value[-4:]
+
+
+def validate_credentials(payload: dict[str, Any]) -> list[str]:
+    """校验凭证 payload 的结构。"""
+    errs: list[str] = []
+    if not isinstance(payload, dict):
+        return ["凭证必须是对象"]
+    # 每个 key 应该是平台名
+    valid_platforms = set(CREDENTIAL_PLATFORMS.keys())
+    for platform_key in payload:
+        if platform_key not in valid_platforms:
+            errs.append(f"未知平台: {platform_key}")
+            continue
+        cred = payload[platform_key]
+        if not isinstance(cred, dict):
+            errs.append(f"{platform_key} 必须是对象")
+            continue
+        valid_fields = set(CREDENTIAL_PLATFORMS[platform_key]["fields"])
+        for field in cred:
+            if field not in valid_fields:
+                errs.append(f"{platform_key}.{field} 未知字段")
+    return errs
+
+
+def credential_status() -> dict[str, Any]:
+    """返回各平台凭证状态（脱敏），供前端展示。"""
+    cred = settings.api_credentials
+    result: dict[str, Any] = {}
+    for platform_key, meta in CREDENTIAL_PLATFORMS.items():
+        fields_masked: dict[str, str] = {}
+        configured = False
+        for field_name in meta["fields"]:
+            raw = getattr(cred, field_name, "")
+            fields_masked[field_name] = _mask_value(raw)
+            if raw:
+                configured = True
+        result[platform_key] = {
+            "label": meta["label"],
+            "doc_url": meta["doc_url"],
+            "usage": meta["usage"],
+            "fields": fields_masked,
+            "configured": configured,
+        }
+    return result
+
+
+def save_credentials(payload: dict[str, Any]) -> dict[str, Any]:
+    """增量合并平台凭证到 runtime_overrides.json + 实时生效。"""
+    errs = validate_credentials(payload)
+    if errs:
+        raise ValueError("; ".join(errs))
+
+    # 展平：{ "1688": { "alibaba_1688_app_key": "x" } } → { "alibaba_1688_app_key": "x" }
+    flat: dict[str, str] = {}
+    for platform_key, cred in payload.items():
+        for field_name, value in cred.items():
+            flat[field_name] = value if value else ""
+
+    # 透过 save_overrides 走文件锁 + 增量合并 + 实时生效
+    wrapped = {"api_credentials": flat}
+    merged = save_overrides(wrapped)
+    cred_status = credential_status()
+    # 重新读取合并后的完整凭证状态
+    return credential_status()
+
+
+def delete_credential(platform_key: str) -> None:
+    """删除单个平台的所有凭证字段。"""
+    if platform_key not in CREDENTIAL_PLATFORMS:
+        raise ValueError(f"未知平台: {platform_key}")
+    fields = CREDENTIAL_PLATFORMS[platform_key]["fields"]
+    # 将各字段置空
+    flat = {f: "" for f in fields}
+    save_overrides({"api_credentials": flat})
+    # 同时清空内存中的 settings
+    cred = settings.api_credentials
+    for f in fields:
+        if hasattr(cred, f):
+            setattr(cred, f, "")

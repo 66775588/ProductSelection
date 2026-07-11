@@ -2,20 +2,23 @@
 """FastAPI 服务：路由 + 静态挂载 + 启动恢复/卡死清理。"""
 from __future__ import annotations
 
+import json
+import logging
+import sqlite3
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
-from dianshang.config import settings
 from dianshang.memory import long_term as mem
 from dianshang.server import config_store, jobs, paths, runner
+
+logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 PLATFORMS = {"pdd", "taobao", "tmall", "jd"}
@@ -71,12 +74,15 @@ def _stale_loop() -> None:
         try:
             _cleanup_stale()
         except Exception:  # noqa: BLE001
-            pass
+            logger.exception("stale cleanup failed")
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="选品调研 Agent")
     mem.init_db()
+    ov = config_store.load_overrides()
+    if ov:
+        config_store.apply_overrides(ov)
     _restore_inflight()
     threading.Thread(target=_stale_loop, daemon=True).start()
 
@@ -112,12 +118,19 @@ def create_app() -> FastAPI:
 
     @app.delete("/api/jobs/{job_id}")
     def cancel_job(job_id: str):
-        mem.release_job(job_id)
-        jobs.job_store.update(job_id, status="cancelled")
+        st = jobs.job_store.get(job_id)
+        if not st:
+            return _err("not_found", "任务不存在", 404)
+        if st.status in ("running", "queued"):
+            jobs.job_store.update(job_id, status="cancelled")
+            mem.release_job(job_id)
+        # 已 done/error/cancelled 的不改动
         return {"ok": True}
 
     @app.get("/api/history")
     def history(limit: int = 50, offset: int = 0):
+        if offset < 0:
+            return _err("bad_param", "offset 须 ≥ 0", 400)
         if limit < 1 or limit > 200:
             return _err("bad_param", "limit 须在 1–200", 400)
         items = mem.list_history(limit=limit, offset=offset)
@@ -160,6 +173,27 @@ def create_app() -> FastAPI:
         except ValueError as e:
             return _err("invalid_config", str(e), 400)
         return merged
+
+    # API 凭证管理
+    @app.get("/api/credentials")
+    def get_credentials():
+        return config_store.credential_status()
+
+    @app.put("/api/credentials")
+    def put_credentials(payload: dict[str, Any]):
+        try:
+            status = config_store.save_credentials(payload)
+            return status
+        except ValueError as e:
+            return _err("invalid_credentials", str(e), 400)
+
+    @app.delete("/api/credentials/{platform_key}")
+    def delete_credential(platform_key: str):
+        try:
+            config_store.delete_credential(platform_key)
+            return {"ok": True}
+        except ValueError as e:
+            return _err("invalid_platform", str(e), 400)
 
     # 静态前端
     from fastapi.staticfiles import StaticFiles

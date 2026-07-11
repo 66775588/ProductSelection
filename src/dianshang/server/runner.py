@@ -30,6 +30,18 @@ NODE_ORDER = list(NODE_LABELS.keys())
 
 def build_result(state: AgentState) -> dict[str, Any]:
     profit = state.get("profit") or {}
+    # 竞品 TOP20 → 序列化为前端可渲染的结构
+    raw_competitors = state.get("competitors") or []
+    competitors = []
+    for c in raw_competitors:
+        competitors.append({
+            "rank": getattr(c, "rank", 0),
+            "title": getattr(c, "title", ""),
+            "price": getattr(c, "price", 0),
+            "sales": getattr(c, "sales", 0),
+            "shop_name": getattr(c, "shop_name", ""),
+            "url": getattr(c, "url", ""),
+        })
     return {
         "category": state.get("category", ""),
         "platform": state.get("platform", ""),
@@ -38,6 +50,7 @@ def build_result(state: AgentState) -> dict[str, Any]:
         "total_score": state.get("total_score", 0),
         "scores": state.get("scores", {}),
         "profit": profit,
+        "competitors": competitors,
         "pain_points": (state.get("pain_points") or [])[:5],
         "risk_items": state.get("risk_items", []),
         "red_line_hit": bool(state.get("red_line_hit", False)),

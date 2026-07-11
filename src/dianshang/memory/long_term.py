@@ -93,6 +93,17 @@ def save_selection(state: AgentState) -> int:
                         "scores": state.get("scores", {}),
                         "pain_points": state.get("pain_points", [])[:5],
                         "risk_items": state.get("risk_items", []),
+                        "competitors": [
+                            {
+                                "rank": getattr(c, "rank", i + 1),
+                                "title": getattr(c, "title", ""),
+                                "price": getattr(c, "price", 0),
+                                "sales": getattr(c, "sales", 0),
+                                "shop_name": getattr(c, "shop_name", ""),
+                                "url": getattr(c, "url", ""),
+                            }
+                            for i, c in enumerate(state.get("competitors", []))
+                        ],
                     },
                     ensure_ascii=False,
                 ),
