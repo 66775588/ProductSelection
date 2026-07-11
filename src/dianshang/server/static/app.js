@@ -90,7 +90,7 @@ function pollJob(jobId) {
 function renderResult(res) {
   if (!res) return;
   const dl = Object.entries(res.report_paths || {}).map(
-    ([k, p]) => `<a href="/api/reports/${p.split('/').pop()}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
+    ([k, p]) => `<a href="/api/reports/${p.split(/[/\\]/).pop()}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
   ).join(' ');
   const scores = Object.entries(res.scores || {}).map(([k, v]) => {
     const label = Object.fromEntries(WEIGHT_KEYS)[k] || k;
@@ -133,7 +133,7 @@ window.showDetail = async function(id) {
   const d = await (await fetch(`/api/history/${id}`)).json();
   const sj = d.state_json || {};
   const dl = Object.entries(d.report_paths || {}).map(
-    ([k, p]) => `<a href="/api/reports/${(p||'').split('/').pop()}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
+    ([k, p]) => `<a href="/api/reports/${(p||'').split(/[/\\]/).pop()}" target="_blank"><button>下载 ${k.toUpperCase()}</button></a>`
   ).join(' ');
   const scores = Object.entries(sj.scores || {}).map(([k,v]) => {
     const label = Object.fromEntries(WEIGHT_KEYS)[k] || k;
