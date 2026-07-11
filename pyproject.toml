@@ -36,6 +36,7 @@ web = [
 
 [project.scripts]
 dianshang = "dianshang.cli:main"
+dianshang-web = "dianshang.server.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

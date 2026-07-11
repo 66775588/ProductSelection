@@ -33,6 +33,19 @@ python -m examples.run_demo "保温杯" --platform pdd
 
 运行后在 `data/reports/` 生成 Markdown / Excel / Word 三份报告，控制台打印推荐等级与综合得分。
 
+## Web 界面
+
+```bash
+pip install -e ".[web]"
+dianshang-web            # 启动 http://127.0.0.1:8000
+```
+
+或开发模式：`uvicorn dianshang.server.app:create_app --factory --reload`
+
+功能：输入品类→查看 9 节点实时进度→结果总览（五维评分/利润/痛点/风险）→下载 md/xlsx/docx 报告；历史记录分页浏览；设置页在线调评分权重/利润参数/强制 Mock（持久化到 `data/runtime_overrides.json`）。
+
+单任务串行：同一时刻只允许一个调研任务运行（SQLite 锁），超 30 分钟未完成的任务会被自动清理。
+
 ## 工作流
 
 ```
