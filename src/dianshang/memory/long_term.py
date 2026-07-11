@@ -129,23 +129,17 @@ def list_history(limit: int = 50) -> list[dict[str, Any]]:
 
 
 def claim_job(job_id: str, category: str, platform: str) -> bool:
-    """原子抢占单任务锁。已有 running 任务则失败。"""
+    """原子抢占单任务锁。已有 running 任务则失败。单条 SQL 保证跨进程原子性。"""
     init_db()
     with _connect() as conn:
-        if conn.execute(
-            "SELECT 1 FROM running_jobs WHERE status='running'"
-        ).fetchone():
-            return False
-        try:
-            conn.execute(
-                "INSERT INTO running_jobs (job_id, category, platform, started_at, status) "
-                "VALUES (?, ?, ?, ?, 'running')",
-                (job_id, category, platform, datetime.now().isoformat()),
-            )
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        cur = conn.execute(
+            "INSERT INTO running_jobs (job_id, category, platform, started_at, status) "
+            "SELECT ?, ?, ?, ?, 'running' "
+            "WHERE NOT EXISTS (SELECT 1 FROM running_jobs WHERE status='running')",
+            (job_id, category, platform, datetime.now().isoformat()),
+        )
+        conn.commit()
+        return cur.rowcount == 1
 
 
 def get_running_job() -> dict[str, Any] | None:
