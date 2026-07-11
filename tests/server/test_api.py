@@ -32,6 +32,14 @@ def test_research_poll_done_flow(tmp_path, monkeypatch):
     assert len(st["completed_nodes"]) == 9
     assert "recommendation" in st["result"]
 
+    # 正向对照：路由能通过 sanitize 正常返回真实报告文件 (200)，证明 400 是刻意拒绝而非一律 400
+    from pathlib import Path
+    md_path = st["result"]["report_paths"].get("md")
+    if md_path:
+        fname = Path(md_path).name
+        r_dl = c.get(f"/api/reports/{fname}")
+        assert r_dl.status_code == 200, f"真实报告下载应 200，得到 {r_dl.status_code}"
+
 
 def test_concurrent_research_409(tmp_path, monkeypatch):
     monkeypatch.setattr(mem.settings.paths, "memory_db", tmp_path / "m.db")
@@ -56,11 +64,13 @@ def test_cancel_releases_lock(tmp_path, monkeypatch):
 
 def test_path_traversal_rejected():
     c = client()
-    for bad in ["../../etc/passwd", "/etc/passwd", "..\\secret"]:
-        r = c.get(f"/api/reports/{bad}")
-        # 400 = handler rejected; 404 = httpx normalised ".." out of the
-        # route prefix before it reached the app (also a safe rejection).
-        assert r.status_code in (400, 404)
+    # httpx 会把含 '/' 的 '../..' 归一化掉，到不了 handler → 400 或 404 均可
+    for normalized in ["../../etc/passwd", "/etc/passwd"]:
+        assert c.get(f"/api/reports/{normalized}").status_code in (400, 404)
+    # 反斜杠 / 前导点 不会被 httpx 归一化，能到达 handler → 必须被 sanitize 拒绝为 400
+    for reaches_handler in ["..\\secret", "..secret"]:
+        assert c.get(f"/api/reports/{reaches_handler}").status_code == 400, (
+            f"{reaches_handler!r} 到达 handler 后必须返回 400")
 
 
 def test_config_get_put_roundtrip():
