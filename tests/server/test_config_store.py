@@ -41,19 +41,31 @@ def test_save_merges_incrementally(tmp_path, monkeypatch):
 
 def test_concurrent_writes_no_loss(tmp_path, monkeypatch):
     monkeypatch.setattr(config_store, "OVERRIDES_PATH", tmp_path / "ov.json")
-    keys = ["market_potential", "competition", "profit", "pain_points", "risk"]
+    # 每个线程写 profit 下一个不同的子字段；只有深度合并+锁能让 7 个字段全部存活。
+    # 纯 last-writer-wins（无合并）会让 profit 只剩最后一个字段 → 断言失败。
+    fields = [
+        ("profit_threshold", 25.0),
+        ("platform_commission_rate", 0.05),
+        ("logistics_rate", 0.08),
+        ("promotion_rate", 0.12),
+        ("refund_loss_rate", 0.04),
+        ("tax_rate", 0.02),
+        ("packaging_cost", 3.5),
+    ]
 
-    def writer(k):
-        config_store.save_overrides(
-            {"scoring_weights": {k: 0.2, **{kk: 0.2 for kk in keys if kk != k}}})
+    def writer(field, value):
+        config_store.save_overrides({"profit": {field: value}})
 
-    threads = [threading.Thread(target=writer, args=(k,)) for k in keys]
+    threads = [threading.Thread(target=writer, args=(f, v)) for f, v in fields]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+
     ov = config_store.load_overrides()
-    assert set(ov["scoring_weights"].keys()) == set(keys)  # 五个 key 都在
+    profit = ov["profit"]
+    for f, v in fields:
+        assert profit[f] == v, f"字段 {f} 丢失（说明深度合并或锁未生效）"
 
 
 def test_apply_overrides_mutates_settings():
