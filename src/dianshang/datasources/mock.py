@@ -45,12 +45,21 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def generate_competitors(category: str, n: int = 20) -> list[CompetitorProduct]:
+def generate_competitors(category: str, platform: str = "pdd", n: int = 20) -> list[CompetitorProduct]:
     rng = _seeded_random(category)
+    # 平台基础域名（占位链接）
+    _PLATFORM_URLS: dict[str, str] = {
+        "pdd": "https://mobile.yangkeduo.com/goods.html?goods_id=mock_{pid}",
+        "taobao": "https://item.taobao.com/item.htm?id=mock_{pid}",
+        "tmall": "https://detail.tmall.com/item.htm?id=mock_{pid}",
+        "jd": "https://item.jd.com/mock_{pid}.html",
+    }
+    url_tpl = _PLATFORM_URLS.get(platform, _PLATFORM_URLS["pdd"])
     # 价格带：基于品类哈希落在 15~150 元区间
     base_price = 15 + (rng.random() * 135)
     competitors: list[CompetitorProduct] = []
     for i in range(n):
+        pid = 100000 + i * 7 + hash(category + str(i)) % 900000
         price = round(base_price * rng.uniform(0.6, 1.8), 1)
         # 销量幂律分布：头部远高于尾部
         sales = int(rng.randint(50, 500) * (1.6 ** (n - i)) * rng.uniform(0.7, 1.3))
@@ -66,6 +75,7 @@ def generate_competitors(category: str, n: int = 20) -> list[CompetitorProduct]:
                 shop_level=rng.choices([1, 2, 3, 4, 5], weights=[5, 10, 25, 35, 25])[0],
                 sku_count=rng.randint(1, 15),
                 review_count=review_count,
+                url=url_tpl.format(pid=pid),
                 tags=rng.sample(VARIANT_WORDS, k=rng.randint(2, 4)),
                 source=DataSource.MOCK,
                 fetched_at=_now(),
@@ -161,6 +171,7 @@ def generate_supply(category: str, competitors: list[CompetitorProduct] | None =
     sources: list[SupplySource] = []
     for i in range(5):
         supply_price = round(median_price * rng.uniform(0.40, 0.55), 2)
+        pid = 6000000000 + hash(category + str(i)) % 9000000000
         sources.append(
             SupplySource(
                 product_name=f"{category}代发款{i+1}",
@@ -168,7 +179,7 @@ def generate_supply(category: str, competitors: list[CompetitorProduct] | None =
                 moq=rng.choice([1, 2, 5, 10, 50, 100]),
                 delivery_days=rng.choice([1, 2, 3, 5, 7]),
                 supplier_level=rng.choices([1, 2, 3], weights=[20, 50, 30])[0],
-                url="",
+                url=f"https://detail.1688.com/offer/{pid}.html",
                 source=DataSource.MOCK,
                 fetched_at=_now(),
             )

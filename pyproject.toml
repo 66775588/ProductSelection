@@ -28,9 +28,15 @@ dependencies = [
 [project.optional-dependencies]
 pdf = ["weasyprint>=60.0"]
 dev = ["pytest>=8.0.0", "pytest-cov>=5.0.0"]
+web = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "portalocker>=2.8.0",
+]
 
 [project.scripts]
 dianshang = "dianshang.cli:main"
+dianshang-web = "dianshang.server.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

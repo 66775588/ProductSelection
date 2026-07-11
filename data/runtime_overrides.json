@@ -1,0 +1,9 @@
+{
+  "crawl": {
+    "force_mock": true
+  },
+  "api_credentials": {
+    "alibaba_1688_app_key": "",
+    "alibaba_1688_app_secret": ""
+  }
+}

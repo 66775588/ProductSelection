@@ -61,6 +61,23 @@ class LLMConfig(BaseModel):
     max_retries: int = Field(default=3)
 
 
+class PlatformCredentials(BaseModel):
+    """各电商平台 API 凭证。运行时通过 Web 设置页输入，持久化到 runtime_overrides.json。"""
+
+    # 1688 开放平台
+    alibaba_1688_app_key: str = Field(default="", description="1688 AppKey")
+    alibaba_1688_app_secret: str = Field(default="", description="1688 AppSecret")
+    # 生意参谋（淘宝/天猫）
+    sheng_yi_can_token: str = Field(default="", description="生意参谋授权 Token")
+    sheng_yi_can_cookie: str = Field(default="", description="生意参谋 Cookie（备用）")
+    # 京东商智
+    jd_shangzhi_app_key: str = Field(default="", description="京东商智 AppKey")
+    jd_shangzhi_app_secret: str = Field(default="", description="京东商智 AppSecret")
+    # 拼多多开放平台
+    pdd_client_id: str = Field(default="", description="拼多多 client_id")
+    pdd_client_secret: str = Field(default="", description="拼多多 client_secret")
+
+
 class CrawlConfig(BaseModel):
     timeout: int = Field(default=30)
     concurrency: int = Field(default=3)
@@ -82,6 +99,7 @@ class Settings(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     crawl: CrawlConfig = Field(default_factory=CrawlConfig)
     paths: Paths = Field(default_factory=Paths)
+    api_credentials: PlatformCredentials = Field(default_factory=PlatformCredentials)
 
 
 def load_settings() -> Settings:

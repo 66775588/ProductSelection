@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from dianshang.agent.state import AgentState
@@ -43,6 +43,27 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS running_jobs (
+                job_id     TEXT PRIMARY KEY,
+                category   TEXT NOT NULL,
+                platform   TEXT,
+                started_at TEXT NOT NULL,
+                status     TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_progress (
+                job_id       TEXT NOT NULL,
+                node_key     TEXT NOT NULL,
+                completed_at TEXT NOT NULL,
+                PRIMARY KEY (job_id, node_key)
+            )
+            """
+        )
         conn.commit()
 
 
@@ -72,6 +93,17 @@ def save_selection(state: AgentState) -> int:
                         "scores": state.get("scores", {}),
                         "pain_points": state.get("pain_points", [])[:5],
                         "risk_items": state.get("risk_items", []),
+                        "competitors": [
+                            {
+                                "rank": getattr(c, "rank", i + 1),
+                                "title": getattr(c, "title", ""),
+                                "price": getattr(c, "price", 0),
+                                "sales": getattr(c, "sales", 0),
+                                "shop_name": getattr(c, "shop_name", ""),
+                                "url": getattr(c, "url", ""),
+                            }
+                            for i, c in enumerate(state.get("competitors", []))
+                        ],
                     },
                     ensure_ascii=False,
                 ),
@@ -94,14 +126,77 @@ def add_feedback(record_id: int, actual_sales: int, note: str = "") -> None:
         conn.commit()
 
 
-def list_history(limit: int = 50) -> list[dict[str, Any]]:
-    """查询历史选品记录。"""
+def list_history(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """查询历史选品记录（分页，DESC）。"""
     init_db()
     with _connect() as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT id, category, platform, recommendation, total_score, gross_margin, "
-            "actual_sales, created_at FROM selections ORDER BY id DESC LIMIT ?",
-            (limit,),
+            "red_line_hit, created_at, report_paths FROM selections "
+            "ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def claim_job(job_id: str, category: str, platform: str) -> bool:
+    """原子抢占单任务锁。已有 running 任务则失败。单条 SQL 保证跨进程原子性。"""
+    init_db()
+    with _connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO running_jobs (job_id, category, platform, started_at, status) "
+            "SELECT ?, ?, ?, ?, 'running' "
+            "WHERE NOT EXISTS (SELECT 1 FROM running_jobs WHERE status='running')",
+            (job_id, category, platform, datetime.now().isoformat()),
+        )
+        conn.commit()
+        return cur.rowcount == 1
+
+
+def get_running_job() -> dict[str, Any] | None:
+    init_db()
+    with _connect() as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT job_id, category, platform, started_at FROM running_jobs WHERE status='running'"
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def release_job(job_id: str) -> None:
+    init_db()
+    with _connect() as conn:
+        conn.execute("DELETE FROM running_jobs WHERE job_id=?", (job_id,))
+        conn.execute("DELETE FROM job_progress WHERE job_id=?", (job_id,))
+        conn.commit()
+
+
+def stale_jobs(older_than_minutes: int = 30) -> list[str]:
+    init_db()
+    cutoff = (datetime.now() - timedelta(minutes=older_than_minutes)).isoformat()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT job_id FROM running_jobs WHERE status='running' AND started_at < ?",
+            (cutoff,),
+        ).fetchall()
+        return [r[0] for r in rows]
+
+
+def append_progress(job_id: str, node_key: str) -> None:
+    init_db()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO job_progress (job_id, node_key, completed_at) VALUES (?, ?, ?)",
+            (job_id, node_key, datetime.now().isoformat()),
+        )
+        conn.commit()
+
+
+def load_progress(job_id: str) -> list[str]:
+    init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT node_key FROM job_progress WHERE job_id=? ORDER BY rowid", (job_id,)
+        ).fetchall()
+        return [r[0] for r in rows]

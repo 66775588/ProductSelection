@@ -96,7 +96,7 @@ class CompositeDataSource:
 
         # 兜底：任一数据源整体失败时用 Mock 补
         market = results.get("market") or mock_gen.generate_market(category)
-        competitors = results.get("competitors") or mock_gen.generate_competitors(category)
+        competitors = results.get("competitors") or mock_gen.generate_competitors(category, platform)
         reviews = results.get("reviews") or mock_gen.generate_reviews(category)
         supply = results.get("supply")
 
