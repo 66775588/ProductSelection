@@ -115,15 +115,16 @@ def add_feedback(record_id: int, actual_sales: int, note: str = "") -> None:
         conn.commit()
 
 
-def list_history(limit: int = 50) -> list[dict[str, Any]]:
-    """查询历史选品记录。"""
+def list_history(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """查询历史选品记录（分页，DESC）。"""
     init_db()
     with _connect() as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT id, category, platform, recommendation, total_score, gross_margin, "
-            "actual_sales, created_at FROM selections ORDER BY id DESC LIMIT ?",
-            (limit,),
+            "red_line_hit, created_at, report_paths FROM selections "
+            "ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         return [dict(r) for r in rows]
 
