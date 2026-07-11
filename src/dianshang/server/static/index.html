@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>选品调研 Agent</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<nav class="tabs">
+  <button class="tab active" data-tab="research">新建调研</button>
+  <button class="tab" data-tab="history">历史记录</button>
+  <button class="tab" data-tab="detail">报告详情</button>
+  <button class="tab" data-tab="config">设置</button>
+</nav>
+
+<section id="tab-research" class="panel active">
+  <form id="research-form">
+    <label>品类 <input id="f-category" required placeholder="如 保温杯" /></label>
+    <label>平台
+      <select id="f-platform">
+        <option value="pdd">拼多多</option>
+        <option value="taobao">淘宝</option>
+        <option value="tmall">天猫</option>
+        <option value="jd">京东</option>
+      </select>
+    </label>
+    <details>
+      <summary>高级（覆盖本次运行配置）</summary>
+      <label><input type="checkbox" id="f-force-mock" /> 强制 Mock 数据</label>
+      <div id="weight-sliders"></div>
+      <div id="weight-sum">权重和: <b>—</b></div>
+    </details>
+    <button type="submit">开始调研</button>
+  </form>
+  <div id="stepper"></div>
+  <div id="result"></div>
+</section>
+
+<section id="tab-history" class="panel">
+  <table id="history-table"><thead><tr>
+    <th>品类</th><th>平台</th><th>推荐</th><th>总分</th><th>毛利率%</th><th>红线</th><th>时间</th><th></th>
+  </tr></thead><tbody></tbody></table>
+  <div id="history-pager">
+    <button id="prev-page">上一页</button>
+    <span id="page-info"></span>
+    <button id="next-page">下一页</button>
+  </div>
+</section>
+
+<section id="tab-detail" class="panel">
+  <div id="detail-content"></div>
+</section>
+
+<section id="tab-config" class="panel">
+  <form id="config-form">
+    <h3>评分权重（和=100%）</h3>
+    <div id="cfg-weights"></div>
+    <div id="cfg-weight-sum">权重和: <b>—</b></div>
+    <h3>利润参数</h3>
+    <div id="cfg-profit"></div>
+    <h3>数据</h3>
+    <label><input type="checkbox" id="cfg-force-mock" /> 强制 Mock</label>
+    <button type="submit">保存</button>
+    <span id="cfg-status"></span>
+  </form>
+</section>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
