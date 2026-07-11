@@ -40,8 +40,15 @@ def build_graph():
 selection_graph = build_graph()
 
 
-def run(category: str, platform: str = "pdd") -> AgentState:
-    """运行完整选品调研流程，返回最终 state。"""
+def run(category: str, platform: str = "pdd",
+        overrides: dict | None = None) -> AgentState:
+    """运行完整选品调研流程，返回最终 state。
+
+    overrides: 可选运行时覆盖（scoring_weights/profit/crawl），原地应用到 settings 单例。
+    """
+    if overrides:
+        from dianshang.server.config_store import apply_overrides
+        apply_overrides(overrides)
     initial: AgentState = {"category": category, "platform": platform}
     final = selection_graph.invoke(initial)
     return final  # type: ignore[return-value]
