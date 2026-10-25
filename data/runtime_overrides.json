@@ -1,6 +1,6 @@
 {
   "crawl": {
-    "force_mock": true
+    "force_mock": false
   },
   "api_credentials": {
     "alibaba_1688_app_key": "",
